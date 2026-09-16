@@ -1,7 +1,7 @@
 ## Interface: 120100
 ## Title: Classic Andy UI
 ## Notes: Restores the Classic look to WoW: Forever UI elements.
-## Author: Derek Springer
+## Author: KidMoxie
 ## Version: @project-version@
 ## SavedVariables: ClassicAndyUIDB
 ## X-License: MIT
