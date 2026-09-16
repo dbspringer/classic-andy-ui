@@ -15,10 +15,18 @@ globals = {
 read_globals = {
   -- WoW API
   "CreateFrame",
+  "InCombatLockdown",
   "ReloadUI",
   "StaticPopup_Show",
+  "UnitFrameManaBar_UpdateType",
+  "UnitIsDead",
+  "UnitIsGhost",
+  "UnitPowerType",
   "hooksecurefunc",
+  -- Blizzard data
+  "PowerBarColor",
   -- Blizzard frames
-  "PlayerFrame",
+  "PlayerLevelText",
   "TargetFrame",
+  "PlayerFrame",
 }
