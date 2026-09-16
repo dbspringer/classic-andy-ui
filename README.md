@@ -16,5 +16,6 @@ Personal experiment. First slice: the player frame and the target frame.
 
 ## Develop
 
-Symlink the repo into an AddOns folder, then see `docs/verification.md`.
+Symlink the repo into an AddOns folder. The verification checklist, reference
+screenshots, and research notes live in the Obsidian vault under "Classic Andy UI".
 Lint with `luacheck .` and package with the BigWigs packager.
