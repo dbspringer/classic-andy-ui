@@ -21,9 +21,9 @@ end
 -- Reskins hide and swap textures on Blizzard's frames. Undoing that at runtime
 -- is not clean, so the switch takes effect on the next UI reload.
 StaticPopupDialogs["CLASSICANDYUI_RELOAD"] = {
-  text = "Classic Andy UI is now %s. Reload the UI to apply?",
-  button1 = "Reload",
-  button2 = "Later",
+  text = "%s",
+  button1 = RELOADUI,
+  button2 = LATER,
   OnAccept = function() ReloadUI() end,
   timeout = 0,
   whileDead = true,
@@ -33,7 +33,10 @@ StaticPopupDialogs["CLASSICANDYUI_RELOAD"] = {
 
 local function Toggle()
   ClassicAndyUIDB.enabled = not ClassicAndyUIDB.enabled
-  StaticPopup_Show("CLASSICANDYUI_RELOAD", IsEnabled() and "on" or "off")
+  local message = IsEnabled()
+    and ns.L["Classic Andy UI is now enabled. Reload the UI to apply?"]
+    or ns.L["Classic Andy UI is now disabled. Reload the UI to apply?"]
+  StaticPopup_Show("CLASSICANDYUI_RELOAD", message)
 end
 
 SLASH_CLASSICANDYUI1 = "/cau"
