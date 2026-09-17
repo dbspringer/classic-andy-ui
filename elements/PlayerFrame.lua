@@ -500,13 +500,14 @@ end
 -- unit states Classic read is what puts it back. Both are the player's own unit, so
 -- neither returns a secret value.
 --
--- The file goes on ungated, like the mana fill. Showing and hiding is a visibility
--- call on Blizzard's own region, so it waits for the lockdown with the rest.
+-- Ungated, like the mana fill: the banner is a Texture, and the combat gate holds back
+-- a Frame only. A player who flags mid-fight gets the banner without waiting for the
+-- fight to end.
 --
 -- Called from AfterApply rather than from a hook of its own, because
 -- PlayerFrame_UpdatePvPStatus is already in ART_FUNCTIONS and AfterApply is where the
 -- mana fill is restored from too.
-local function RestoreClassicPvPIcon(restorer, locked)
+local function RestoreClassicPvPIcon()
   local icon = ResolveRegion(CONTEXTUAL .. ".PVPIcon")
   if not icon then
     return
@@ -524,10 +525,6 @@ local function RestoreClassicPvPIcon(restorer, locked)
     end
   end
 
-  if locked then
-    restorer:MarkPending()
-    return
-  end
   icon:SetShown(shown)
 end
 
@@ -560,18 +557,16 @@ local function Restore()
   -- PlayerFrame_UpdateRolesAssigned hides the level to make room for the role icon
   -- (Mainline/PlayerFrame.lua:440-441), and the spec table hides that icon. Classic
   -- has no role icon and always shows the level, except in a vehicle, where Blizzard
-  -- hides it on purpose (Mainline/PlayerFrame.lua:647). Showing it is a visibility
-  -- call on Blizzard's own region, so it waits for the lockdown like the rest.
-  local function AfterApply(locked)
-    if locked then
-      restorer:MarkPending()
-    elseif PlayerFrame.state ~= "vehicle" then
+  -- hides it on purpose (Mainline/PlayerFrame.lua:647). PlayerLevelText is a
+  -- FontString, so the show sits outside the combat gate.
+  local function AfterApply()
+    if PlayerFrame.state ~= "vehicle" then
       PlayerLevelText:Show()
     end
 
     UnmaskBars()
     ns.RestoreManaFill(ResolveRegion(MANA_BAR))
-    RestoreClassicPvPIcon(restorer, locked)
+    RestoreClassicPvPIcon()
   end
 
   -- Registered before the first pass, because AfterApply restores the fill and the

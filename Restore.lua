@@ -204,13 +204,15 @@ function ns.NewRestorer(root)
   -- and SetTexture, SetTexCoord, SetBlendMode, SetStatusBarTexture, SetStatusBarColor
   -- and SetJustifyH carry no lockdown risk.
   --
-  -- Geometry and visibility -- SetSize, SetPoint, SetHitRectInsets, Hide -- are held
-  -- back, because they are restricted on a protected frame and every region below an
-  -- element's root frame is protected. applyPending brings the pass back on
+  -- Geometry and visibility are held back on a Frame, and only on a Frame: an in-game
+  -- experiment on 2026-09-17 (Midnight 12.1) found SetSize, ClearAllPoints, SetPoint,
+  -- SetUsingParentLevel, SetFrameLevel and SetHitRectInsets blocked in combat with
+  -- ADDON_ACTION_BLOCKED on a Frame under PlayerFrame, while the same geometry calls,
+  -- Hide and Show on a Texture or a FontString were allowed. StatusBar and Button are
+  -- Frames; a Texture, a MaskTexture and a FontString are not, so a Mirror needs no
+  -- exemption of its own. pcall cannot see a block, so the gate reads the object type
+  -- rather than trying to detect one. applyPending brings the pass back on
   -- PLAYER_REGEN_ENABLED.
-  --
-  -- A Mirror is exempt: it is this addon's own texture on an unprotected path, so
-  -- nothing about it is restricted and gating it would strand it for a whole fight.
   local function ApplyEntry(region, entry, locked)
     if entry.texture then
       region:SetTexture(entry.texture)
@@ -247,14 +249,13 @@ function ns.NewRestorer(root)
     if not (entry.size or entry.point or entry.frameLevel or entry.hitRectInsets or entry.hide) then
       return
     end
-    if locked and not entry.mirror then
+    if locked and region:IsObjectType("Frame") then
       applyPending = true
       return
     end
 
-    -- Gated with the geometry: frame level is a protected-frame call, and the whole tree
-    -- under the root frame is protected. Entries are ordered parents first, because
-    -- setting a frame's level carries its descendants with it.
+    -- Entries are ordered parents first, because setting a frame's level carries its
+    -- descendants with it.
     if entry.frameLevel then
       -- Every bar frame is flagged useParentLevel in Blizzard's XML, and the client
       -- re-asserts that flag over SetFrameLevel: in game the bars stayed at their parent's
@@ -319,12 +320,6 @@ function ns.NewRestorer(root)
     if afterApply then
       afterApply(locked)
     end
-  end
-
-  -- An afterApply tail that holds a call back for the lockdown says so here, so the
-  -- pass comes round again with the gated entries.
-  function restorer:MarkPending()
-    applyPending = true
   end
 
   function restorer:WatchCombat()
