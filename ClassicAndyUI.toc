@@ -9,5 +9,6 @@
 
 locales/enUS.lua
 Core.lua
+Restore.lua
 elements/PlayerFrame.lua
 elements/TargetFrame.lua
