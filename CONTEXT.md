@@ -23,3 +23,7 @@ _Avoid_: Skin, reskin, revert
 **Mirror**:
 A region the addon creates to carry Classic art that has no Modern counterpart. It shows and hides in step with a Modern region, and never reads game state itself.
 _Avoid_: Overlay, replacement, clone
+
+**Display text**:
+Any text a player can read on screen, in the addon's own frames or in a popup.
+_Avoid_: String, label, literal

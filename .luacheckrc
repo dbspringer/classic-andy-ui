@@ -32,4 +32,7 @@ read_globals = {
   "PlayerLevelText",
   "TargetFrame",
   "PlayerFrame",
+  -- Blizzard global strings
+  "LATER",
+  "RELOADUI",
 }
