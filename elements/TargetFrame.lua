@@ -324,12 +324,13 @@ local function BuildSpec(p)
     -- to its text and Classic's LEFT against Modern's CENTER
     -- (Mainline/TargetFrame.xml:119) makes no visible difference.
     --
-    -- The player frame's matching anchor needed a 1.75px nudge off the Classic number to
-    -- read as centred in the Midnight border art. This one is the Classic number
-    -- untouched, and is the first thing to check against the reference shot.
+    -- Tuned by eye against the Anniversary client on 2026-09-17, 1.75px left of
+    -- Classic's -35.25, mirroring the nudge the player frame's matching anchor needed.
+    -- At the Classic value the level read as off-centre in the Midnight border art even
+    -- though the measured rect matched Classic.
     {
       path = p.contentMain .. ".LevelText",
-      point = { point = "CENTER", relativePoint = "BOTTOMRIGHT", x = -35.25, y = 30 },
+      point = { point = "CENTER", relativePoint = "BOTTOMRIGHT", x = -37, y = 30 },
     },
     -- The "??" skull for a target too high to read, and for a corpse:
     -- Classic/TargetFrame.xml:251-255, centred on the level text, against Modern's atlas
