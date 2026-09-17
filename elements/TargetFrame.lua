@@ -243,10 +243,15 @@ local function BuildSpec(p)
     --
     -- Blizzard re-sizes and re-anchors this container per classification
     -- (Mainline/TargetFrame.lua:397-399 and :423-425), which is why it is re-applied on
-    -- every pass rather than set once. A StatusBar and its container are Frames, so in
-    -- combat the engine holds that geometry back until the fight ends: swapping between
-    -- a normal and an elite target mid-fight changes the border at once and the bar
-    -- shape late. Known gap.
+    -- every pass rather than set once. Its SetPoint carries no ClearAllPoints, so in
+    -- combat, where the engine holds a Frame's geometry back, Blizzard's BOTTOMRIGHT
+    -- lands on top of this TOPRIGHT and the width goes back to 126. Pinned on the right
+    -- and widened, the container grows leftward, out past the border art.
+    --
+    -- The container is left on the Classic grid anyway, because it still carries the
+    -- bar's value text and everything else anchored to it. The gap is now the container
+    -- and its text alone: the visible bar is anchored to the frame below, so it no
+    -- longer moves with any of this.
     {
       path = p.healthBars,
       frameLevel = 1,
@@ -259,22 +264,40 @@ local function BuildSpec(p)
     -- (Mainline/UnitFrame.lua:827-829) has to come from here. It is green on both
     -- branches and in every state but disconnected; the target's health bar is never
     -- class-colored.
+    --
+    -- Anchored to the frame, not left on Modern's single TOPLEFT anchor to the container
+    -- (Mainline/TargetFrame.xml:142-144). This is the visible bar, and the container
+    -- under it goes Modern in combat for the reason written above; taking its rect from
+    -- the frame instead is what keeps the green off the border art mid-fight.
+    -- CheckClassification re-sets this bar's atlas but never its size or its anchor
+    -- (Mainline/TargetFrame.lua:396, :422), so the anchor set here stands.
     {
       path = p.healthBars .. ".HealthBar",
       barTexture = CLASSIC_BAR_FILL,
       barColor = { 0, 1, 0 },
       frameLevel = 1,
       size = { 119, 12 },
+      point = { point = "TOPRIGHT", x = -90, y = -45 },
     },
     { path = p.healthBars .. ".HealthBarMask", hide = true },
     -- The temporary-max-health-loss bar is Modern-only, but it is a fill on the health
     -- bar, and CheckClassification re-sets its atlas on every pass
     -- (Mainline/TargetFrame.lua:395, :421), so it takes the Classic fill too.
+    --
+    -- Modern stretches it across the container with a TOPLEFT and a BOTTOMRIGHT anchor
+    -- (Mainline/TargetFrame.xml:135-138), which would walk it off the bar along with the
+    -- container. It is pinned to the health bar instead, which is what it overlays.
     {
       path = p.healthBars .. ".TempMaxHealthLoss",
       barTexture = CLASSIC_BAR_FILL,
       frameLevel = 1,
+      size = { 119, 12 },
+      point = { point = "TOPLEFT", relativeTo = p.healthBars .. ".HealthBar" },
     },
+    -- The bar's value text, its dead and unconscious text stay on the container
+    -- (Mainline/TargetFrame.xml:165-192), so they are the one thing that can still drift
+    -- a few pixels while a fight lasts. They are FontStrings centred on a rect that is
+    -- the right shape again the moment the engine re-applies the container.
 
     -- Heal prediction and absorb sub-bars: Classic/TargetFrame.xml:300-303, the
     -- fillTexture every TargetFrameBarSegmentTemplate segment inherits.
