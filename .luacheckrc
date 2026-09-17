@@ -18,6 +18,7 @@ read_globals = {
   "InCombatLockdown",
   "ReloadUI",
   "StaticPopup_Show",
+  "UnitClassification",
   "UnitFactionGroup",
   "UnitFrameManaBar_UpdateType",
   "UnitIsDead",
