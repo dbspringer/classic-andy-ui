@@ -11,7 +11,8 @@ local _, ns = ...
 -- Citations below name the file and line in those two directories.
 
 local CLASSIC_BORDER = [[Interface\TargetingFrame\UI-TargetingFrame]]
-local CLASSIC_BAR_FILL = [[Interface\TargetingFrame\UI-StatusBar]]
+-- Shared with the engine, which tints it for the mana bar (Restore.lua).
+local CLASSIC_BAR_FILL = ns.CLASSIC_BAR_FILL
 local CLASSIC_STATE_ICON = [[Interface\CharacterFrame\UI-StateIcon]]
 local CLASSIC_LEADER_ICON = [[Interface\GroupFrame\UI-Group-LeaderIcon]]
 local CLASSIC_GROUP_INDICATOR = [[Interface\CharacterFrame\UI-CharacterFrame-GroupIndicator]]
@@ -31,16 +32,7 @@ local HEALTH_BARS = CONTENT_MAIN .. ".HealthBarsContainer"
 local MANA_BAR = CONTENT_MAIN .. ".ManaBarArea.ManaBar"
 local GROUP_INDICATOR = CONTEXTUAL .. ".GroupIndicator"
 
-local function ResolveRegion(path)
-  local region = _G
-  for key in string.gmatch(path, "[^.]+") do
-    region = region[key]
-    if region == nil then
-      return nil
-    end
-  end
-  return region
-end
+local ResolveRegion = ns.ResolveRegion
 
 -- Modern declares the group indicator's middle piece with no name and no parentKey
 -- (Mainline/PlayerFrame.xml:436-441), so there is no key path to it and it has to be
@@ -62,32 +54,7 @@ local function ResolveGroupIndicatorMiddle()
   return nil
 end
 
--- One entry per region, applied in order. An entry names its region one of three ways:
---   path           key path from _G, resolved at apply time so a region Blizzard
---                  renames skips its own entry instead of erroring
---   resolve        a function returning the region, for one Blizzard left unkeyed
---   mirror         the name of a Mirror, a texture this addon creates for Classic art
---                  the Modern frame has no region for. Needs `follows` and
---                  `drawLayer`, which is also the layer it is created in.
---
--- Fields, all optional:
---   follows        mirror only, key path of the Modern region whose visibility the
---                  mirror copies
---   texture        Texture:SetTexture
---   barTexture     StatusBar:SetStatusBarTexture
---   barColor       StatusBar:SetStatusBarColor, r g b
---   justifyH       FontString:SetJustifyH
---   texCoord       left, right, top, bottom
---   blendMode      Texture:SetBlendMode
---   drawLayer      Texture:SetDrawLayer, layer and sublevel
---   vertexColor    Texture:SetVertexColor, r g b
---   alpha          Texture:SetAlpha
---   size           width, height
---   point          anchored to PlayerFrame, the rect every Classic anchor is
---                  measured from
---   frameLevel     Frame:SetFrameLevel, as an offset from PlayerFrame's own level
---   hitRectInsets  left, right, top, bottom
---   hide           a Modern-only region, or a mask the Classic art does not use
+-- One entry per region, applied in order. Restore.lua documents every field.
 local spec = {
   -- Frame: Classic/PlayerFrame.xml:16.
   {
@@ -453,167 +420,6 @@ local spec = {
   { path = CONTEXTUAL .. ".RoleIcon", hide = true },
 }
 
-local applyPending = false
-
--- Art -- what a region is made of -- goes on every pass, in combat included: the
--- combat swords and the combat flash have to be Classic the moment the fight starts,
--- and SetTexture, SetTexCoord, SetBlendMode, SetStatusBarTexture, SetStatusBarColor
--- and SetJustifyH carry no lockdown risk.
---
--- Geometry and visibility -- SetSize, SetPoint, SetHitRectInsets, Hide -- are held
--- back, because they are restricted on a protected frame and every region below
--- Blizzard's PlayerFrame is protected. applyPending brings the pass back on
--- PLAYER_REGEN_ENABLED.
---
--- A Mirror is exempt: it is this addon's own texture on an unprotected path, so
--- nothing about it is restricted and gating it would strand it for a whole fight.
-local function ApplyEntry(region, entry, locked)
-  if entry.texture then
-    region:SetTexture(entry.texture)
-  end
-  if entry.texCoord then
-    -- After SetTexture, so the file's own coords do not survive.
-    local coord = entry.texCoord
-    region:SetTexCoord(coord[1], coord[2], coord[3], coord[4])
-  end
-  if entry.blendMode then
-    region:SetBlendMode(entry.blendMode)
-  end
-  if entry.drawLayer then
-    region:SetDrawLayer(entry.drawLayer[1], entry.drawLayer[2])
-  end
-  if entry.alpha then
-    region:SetAlpha(entry.alpha)
-  end
-  if entry.vertexColor then
-    local color = entry.vertexColor
-    region:SetVertexColor(color[1], color[2], color[3])
-  end
-  if entry.barTexture then
-    region:SetStatusBarTexture(entry.barTexture)
-  end
-  if entry.barColor then
-    local color = entry.barColor
-    region:SetStatusBarColor(color[1], color[2], color[3], 1)
-  end
-  if entry.justifyH then
-    region:SetJustifyH(entry.justifyH)
-  end
-
-  if not (entry.size or entry.point or entry.frameLevel or entry.hitRectInsets or entry.hide) then
-    return
-  end
-  if locked and not entry.mirror then
-    applyPending = true
-    return
-  end
-
-  -- Gated with the geometry: frame level is a protected-frame call, and the whole tree
-  -- under PlayerFrame is protected. Entries are ordered parents first, because setting
-  -- a frame's level carries its descendants with it.
-  if entry.frameLevel then
-    -- Every bar frame is flagged useParentLevel in Blizzard's XML, and the client
-    -- re-asserts that flag over SetFrameLevel: in game the bars stayed at their parent's
-    -- level after the call. Clearing the flag first makes the level stick.
-    if region.SetUsingParentLevel then
-      region:SetUsingParentLevel(false)
-    end
-    region:SetFrameLevel(PlayerFrame:GetFrameLevel() + entry.frameLevel)
-  end
-  if entry.size then
-    region:SetSize(entry.size[1], entry.size[2])
-  end
-  if entry.point then
-    -- Cleared first because the Modern anchor is often a different point than the
-    -- Classic one, and SetPoint would leave both in place.
-    local anchor = entry.point
-    region:ClearAllPoints()
-    region:SetPoint(anchor.point, PlayerFrame, anchor.relativePoint or anchor.point, anchor.x or 0, anchor.y or 0)
-  end
-  if entry.hitRectInsets then
-    local insets = entry.hitRectInsets
-    region:SetHitRectInsets(insets[1], insets[2], insets[3], insets[4])
-  end
-  if entry.hide then
-    region:Hide()
-  end
-end
-
--- Mirrors, keyed by the name their spec entry gives them, and the one frame they are
--- all drawn on. Kept here rather than on a Blizzard frame, because a Lua field written
--- on a Blizzard object by addon code taints it (ADR 0002).
-local mirrors = {}
-local mirrorHost
-
--- Draw order is frame level first and draw layer second, and at equal level a font
--- string outranks a texture. Both halves of that bit: a mirror on PlayerFrame itself
--- sat behind the border art, which lives a level up in PlayerFrameContainer, and a
--- mirror on PlayerFrameContentContextual sat behind PlayerLevelText, which shares that
--- level over in PlayerFrameContentMain and covered the rest bubble in game. One host
--- above both settles it for every mirror at once.
-local function MirrorHost()
-  if mirrorHost then
-    return mirrorHost
-  end
-
-  mirrorHost = CreateFrame("Frame", nil, PlayerFrame)
-  mirrorHost:SetAllPoints(PlayerFrame)
-
-  -- PlayerFrame's two content frames run one level up and their children run two
-  -- (Mainline/PlayerFrame.xml:24, :69, :71, :308). The frames inside those that do not
-  -- carry useParentLevel run three: HitIndicator (:97), PlayerRestLoop (:380) and
-  -- GroupIndicator (:421). Four clears every one of them.
-  --
-  -- It does not clear the ready check, which raises itself to five through
-  -- ReadyCheckStatusTemplate (Mainline/PlayerFrame.xml:377). That is the Classic result
-  -- too: Classic raised its own ready check the same way (Classic/PlayerFrame.xml:178)
-  -- to two levels above the frame holding the state icons.
-  mirrorHost:SetFrameLevel(PlayerFrame:GetFrameLevel() + 4)
-
-  -- The stack the spec table and this host add up to, bottom to top:
-  --   +1  bar fills on BACKGROUND and ARTWORK, then the border on OVERLAY 0, then the
-  --       bar text on OVERLAY 1
-  --   +2  name, level, status glow, and the contextual icons Blizzard still owns
-  --   +4  every mirror, ordered among themselves by drawLayer
-  --   +5  the ready check, which outranks the mirrors on purpose
-  return mirrorHost
-end
-
-local function EnsureMirror(entry)
-  local mirror = mirrors[entry.mirror]
-  if mirror then
-    return mirror
-  end
-
-  local followed = ResolveRegion(entry.follows)
-  if not followed then
-    return nil
-  end
-
-  -- Every mirror shares the host's frame level, so `drawLayer` is the whole of their
-  -- order against each other. It follows the order the Classic XML gave the regions
-  -- they stand in for.
-  mirror = MirrorHost():CreateTexture(nil, entry.drawLayer[1], nil, entry.drawLayer[2])
-  mirrors[entry.mirror] = mirror
-
-  -- A mirror reads no game state. It copies one region's visibility, and Blizzard
-  -- reaches that region through all three calls, so all three are hooked. The sync
-  -- below covers the state the region is already in at load.
-  --
-  -- hooksecurefunc is the one sanctioned way to put a function on a Blizzard object:
-  -- the client installs it from secure code, so unlike the direct field write in
-  -- ADR 0002 it leaves the object untainted.
-  local function Follow()
-    mirror:SetShown(followed:IsShown())
-  end
-  hooksecurefunc(followed, "Show", Follow)
-  hooksecurefunc(followed, "Hide", Follow)
-  hooksecurefunc(followed, "SetShown", Follow)
-  Follow()
-
-  return mirror
-end
-
 -- Classic pulses the glow with the same alpha it gives the status texture, every frame
 -- while that texture shows (Classic/PlayerFrame.lua:440-441, PlayerFrame_OnUpdate).
 -- Modern's PlayerFrame_OnUpdate makes that same call on its own StatusTexture
@@ -627,7 +433,7 @@ end
 -- combat glow above.
 local GLOW_MIRRORS = { "RestGlow", "AttackGlow" }
 
-local function FollowStatusGlowAlpha()
+local function FollowStatusGlowAlpha(restorer)
   local statusTexture = ResolveRegion(CONTENT_MAIN .. ".StatusTexture")
   if not statusTexture then
     return
@@ -635,7 +441,7 @@ local function FollowStatusGlowAlpha()
 
   local function Pulse(_, alpha)
     for _, name in ipairs(GLOW_MIRRORS) do
-      local glow = mirrors[name]
+      local glow = restorer:Mirror(name)
       if glow then
         glow:SetAlpha(alpha)
       end
@@ -648,15 +454,8 @@ local function FollowStatusGlowAlpha()
   Pulse(statusTexture, statusTexture:GetAlpha())
 end
 
-local function StatusBarTexture(bar)
-  return bar and bar:GetStatusBarTexture()
-end
-
-local function RemoveMask(texture, mask)
-  if texture and mask then
-    texture:RemoveMaskTexture(mask)
-  end
-end
+local StatusBarTexture = ns.StatusBarTexture
+local RemoveMask = ns.RemoveMask
 
 -- PlayerFrame_OnLoad clips the bar fills to the Modern silhouettes
 -- (Mainline/PlayerFrame.lua:29-47). The Classic bars are plain rectangles, so the
@@ -688,48 +487,6 @@ local function UnmaskBars()
   end
 end
 
--- The Classic mana bar is one grayscale file tinted per power type. Blizzard's
--- UnitFrameManaBar_UpdateType (Mainline/UnitFrame.lua:490) swaps a Modern atlas back
--- in on every power update, so the Classic look is re-applied after it. This mirrors
--- the non-atlas branch of the Classic function (Classic/UnitFrame.lua:463).
---
--- Deliberately outside the combat gate: it sets a texture and a color, never a size,
--- anchor or visibility, so it carries no lockdown risk. Gating it would leave a druid
--- who shifts form mid-fight wearing the Modern fill for the rest of the fight.
---
--- Runs for every unit frame's mana bar, so it returns unless this is the player's.
-local function RestoreClassicManaFill(manaBar)
-  if not manaBar or manaBar ~= ResolveRegion(MANA_BAR) then
-    return
-  end
-
-  -- Blizzard sets powerToken here only when the power type changes, which always
-  -- happens before its first return, so by hook time the field is current.
-  local powerToken = manaBar.powerToken or select(2, UnitPowerType("player"))
-
-  -- STAGGER and SOUL_FRAGMENTS nest their colors a level down and carry no r of their
-  -- own, so an entry without one falls back the way Blizzard's own lookup does.
-  local color = PowerBarColor[powerToken]
-  if not (color and color.r) then
-    color = PowerBarColor["MANA"]
-  end
-
-  manaBar:SetStatusBarTexture(CLASSIC_BAR_FILL)
-  if UnitIsDead("player") or UnitIsGhost("player") then
-    manaBar:SetStatusBarColor(0.6, 0.6, 0.6, 0.5)
-  else
-    manaBar:SetStatusBarColor(color.r, color.g, color.b, 1)
-  end
-
-  -- Blizzard fades and desaturates the fill for a dead player. Classic says that with
-  -- color alone, so the texture's own state goes back to neutral.
-  local fill = manaBar:GetStatusBarTexture()
-  if fill then
-    fill:SetDesaturated(false)
-    fill:SetAlpha(1)
-  end
-end
-
 -- Blizzard sets the Modern PvP atlas from PlayerFrame_UpdatePvPStatus
 -- (Mainline/PlayerFrame.lua:353, :386 and :392). This is Classic's whole banner
 -- decision instead (Classic/PlayerFrame.lua:125-161): free for all wins, else a
@@ -743,13 +500,14 @@ end
 -- unit states Classic read is what puts it back. Both are the player's own unit, so
 -- neither returns a secret value.
 --
--- The file goes on ungated, like the mana fill. Showing and hiding is a visibility
--- call on Blizzard's own region, so it waits for the lockdown with the rest.
+-- Ungated, like the mana fill: the banner is a Texture, and the combat gate holds back
+-- a Frame only. A player who flags mid-fight gets the banner without waiting for the
+-- fight to end.
 --
--- Called from Apply's tail rather than from a hook of its own, because
--- PlayerFrame_UpdatePvPStatus is already in ART_FUNCTIONS and Apply's tail is where
--- the mana fill is restored from too.
-local function RestoreClassicPvPIcon(locked)
+-- Called from AfterApply rather than from a hook of its own, because
+-- PlayerFrame_UpdatePvPStatus is already in ART_FUNCTIONS and AfterApply is where the
+-- mana fill is restored from too.
+local function RestoreClassicPvPIcon()
   local icon = ResolveRegion(CONTEXTUAL .. ".PVPIcon")
   if not icon then
     return
@@ -767,47 +525,7 @@ local function RestoreClassicPvPIcon(locked)
     end
   end
 
-  if locked then
-    applyPending = true
-    return
-  end
   icon:SetShown(shown)
-end
-
--- One pass over the spec table. Combat is read once so every entry in the pass agrees
--- about it; ApplyEntry decides per operation what that means.
-local function Apply()
-  local locked = InCombatLockdown()
-  applyPending = false
-
-  for _, entry in ipairs(spec) do
-    local region
-    if entry.mirror then
-      region = EnsureMirror(entry)
-    elseif entry.resolve then
-      region = entry.resolve()
-    else
-      region = ResolveRegion(entry.path)
-    end
-    if region then
-      ApplyEntry(region, entry, locked)
-    end
-  end
-
-  -- PlayerFrame_UpdateRolesAssigned hides the level to make room for the role icon
-  -- (Mainline/PlayerFrame.lua:440-441), and the spec table hides that icon. Classic
-  -- has no role icon and always shows the level, except in a vehicle, where Blizzard
-  -- hides it on purpose (Mainline/PlayerFrame.lua:647). Showing it is a visibility
-  -- call on Blizzard's own region, so it waits for the lockdown like the rest.
-  if locked then
-    applyPending = true
-  elseif PlayerFrame.state ~= "vehicle" then
-    PlayerLevelText:Show()
-  end
-
-  UnmaskBars()
-  RestoreClassicManaFill(ResolveRegion(MANA_BAR))
-  RestoreClassicPvPIcon(locked)
 end
 
 -- Blizzard re-applies the Modern art from each of these. Looked up by name so a
@@ -834,30 +552,36 @@ local ART_FUNCTIONS = {
 }
 
 local function Restore()
-  Apply()
+  local restorer = ns.NewRestorer(PlayerFrame)
 
-  local combatWatcher = CreateFrame("Frame")
-  combatWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
-  combatWatcher:SetScript("OnEvent", function()
-    if applyPending then
-      Apply()
+  -- PlayerFrame_UpdateRolesAssigned hides the level to make room for the role icon
+  -- (Mainline/PlayerFrame.lua:440-441), and the spec table hides that icon. Classic
+  -- has no role icon and always shows the level, except in a vehicle, where Blizzard
+  -- hides it on purpose (Mainline/PlayerFrame.lua:647). PlayerLevelText is a
+  -- FontString, so the show sits outside the combat gate.
+  local function AfterApply()
+    if PlayerFrame.state ~= "vehicle" then
+      PlayerLevelText:Show()
     end
-  end)
 
-  -- Hooked on its own rather than through ART_FUNCTIONS: it fires on every power tick,
-  -- where the full Apply would be far too much work, and it must not wait for combat.
-  if type(UnitFrameManaBar_UpdateType) == "function" then
-    hooksecurefunc("UnitFrameManaBar_UpdateType", RestoreClassicManaFill)
+    UnmaskBars()
+    ns.RestoreManaFill(ResolveRegion(MANA_BAR))
+    RestoreClassicPvPIcon()
   end
+
+  -- Registered before the first pass, because AfterApply restores the fill and the
+  -- engine passes over a bar it has not been handed a unit for.
+  restorer:RegisterManaBar(ResolveRegion(MANA_BAR), "player")
+
+  restorer:Apply(spec, AfterApply)
+  restorer:WatchCombat()
 
   -- After the first Apply, so the glow mirrors it drives already exist.
-  FollowStatusGlowAlpha()
+  FollowStatusGlowAlpha(restorer)
 
-  for _, name in ipairs(ART_FUNCTIONS) do
-    if type(_G[name]) == "function" then
-      hooksecurefunc(name, Apply)
-    end
-  end
+  restorer:Hook(ART_FUNCTIONS, function()
+    restorer:Apply(spec, AfterApply)
+  end)
 end
 
 ns.RegisterElement("PlayerFrame", Restore)

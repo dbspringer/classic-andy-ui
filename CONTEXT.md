@@ -27,3 +27,11 @@ _Avoid_: Overlay, replacement, clone
 **Display text**:
 Any text a player can read on screen, in the addon's own frames or in a popup.
 _Avoid_: String, label, literal
+
+**Classification**:
+The client's rank for a unit: normal, minus, elite, rare, rare elite, or world boss. It chooses the target frame's border art.
+_Avoid_: Mob type, rank, difficulty
+
+**Reaction**:
+How a unit stands toward the player: hostile, neutral, or friendly. It tints the name background.
+_Avoid_: Faction color, hostility, attitude
