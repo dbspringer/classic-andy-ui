@@ -18,9 +18,12 @@ read_globals = {
   "InCombatLockdown",
   "ReloadUI",
   "StaticPopup_Show",
+  "UnitFactionGroup",
   "UnitFrameManaBar_UpdateType",
   "UnitIsDead",
   "UnitIsGhost",
+  "UnitIsPVP",
+  "UnitIsPVPFreeForAll",
   "UnitPowerType",
   "hooksecurefunc",
   -- Blizzard data
