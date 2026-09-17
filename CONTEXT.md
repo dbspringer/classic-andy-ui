@@ -19,3 +19,7 @@ _Avoid_: Widget, component, module
 **Restore**:
 Give an element the Classic look. Pixel-faithful where the client permits, restyled where it does not.
 _Avoid_: Skin, reskin, revert
+
+**Mirror**:
+A region the addon creates to carry Classic art that has no Modern counterpart. It shows and hides in step with a Modern region, and never reads game state itself.
+_Avoid_: Overlay, replacement, clone
